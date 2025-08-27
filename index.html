@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simulador Domótico</title>
+  <style>
+    :root {
+      --bg-panel: rgba(15, 15, 15, 0.75);
+      --border-panel: rgba(255, 255, 255, 0.08);
+      --btn-bg1: #2b2b2b;
+      --btn-bg2: #1c1c1c;
+      --btn-border: rgba(255, 255, 255, 0.10);
+      --btn-text: #e6e6e6;
+      --btn-text-dim: #bfbfbf;
+      --btn-hover: #3a3a3a;
+      --shadow-outer: 0 6px 24px rgba(0,0,0,0.45);
+      --shadow-inner: inset 0 1px 0 rgba(255,255,255,0.05);
+    }
+
+    body { margin: 0; overflow: hidden; background: #111; }
+
+    /* Barra superior centrada */
+    #controls {
+      position: fixed;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg-panel);
+      border: 1px solid var(--border-panel);
+      border-radius: 12px;
+      padding: 10px 12px;
+      box-shadow: var(--shadow-outer);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      z-index: 10;
+    }
+
+    /* Contenedor flexible con salto de línea, centrado */
+    #controls .controls-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      align-items: center;
+      max-width: 860px;
+    }
+
+    /* Botón estilo panel oscuro */
+    .ui-button {
+      appearance: none;
+      background: linear-gradient(180deg, var(--btn-bg1), var(--btn-bg2));
+      color: var(--btn-text);
+      border: 1px solid var(--btn-border);
+      border-radius: 8px;
+      width: 70px;
+      height: 70px;
+      padding: 6px;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      font-size: 10px;
+      letter-spacing: .4px;
+      text-transform: uppercase;
+      cursor: pointer;
+      box-shadow: var(--shadow-inner), 0 2px 10px rgba(0,0,0,.35);
+      transition: background .15s ease, transform .06s ease, box-shadow .2s ease;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      text-align: center;
+    }
+    .ui-button:hover { background: linear-gradient(180deg, var(--btn-hover), var(--btn-bg2)); }
+    .ui-button:active { transform: translateY(1px); box-shadow: var(--shadow-inner), 0 1px 6px rgba(0,0,0,.45); }
+    
+    /* Icono del botón */
+    .ui-button::before {
+      content: "";
+      display: block;
+      width: 28px;
+      height: 28px;
+      margin-bottom: 3px;
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+    
+    /* Texto del botón con truncamiento */
+    .ui-button span {
+      display: block;
+      width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    /* Iconos específicos para cada botón */
+    #btnPortonDelantero::before { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23e6e6e6"><path d="M19 19V4h-4V3H5v16H3v2h18v-2h-2zm-6-6h-2v-2h2v2z"/></svg>'); }
+    #btnPortonTrasero::before { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23e6e6e6"><path d="M19 19V4h-4V3H5v16H3v2h18v-2h-2zm-6-6h-2v-2h2v2z"/></svg>'); }
+    #btnPuerta::before { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23e6e6e6"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 9c-.83 0-1.5-.67-1.5-1.5S10.17 8 11 8s1.5.67 1.5 1.5S11.83 11 11 11z"/></svg>'); }
+    #btnPuertaCuarto::before { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23e6e6e6"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 9c-.83 0-1.5-.67-1.5-1.5S10.17 8 11 8s1.5.67 1.5 1.5S11.83 11 11 11z"/></svg>'); }
+    #btnPuertaBaño::before { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23e6e6e6"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 9c-.83 0-1.5-.67-1.5-1.5S10.17 8 11 8s1.5.67 1.5 1.5S11.83 11 11 11z"/></svg>'); }
+    #btnCortinaDelantera::before { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23e6e6e6"><path d="M20 19V3H4v16H2v2h20v-2h-2zM6 5h12v14H6V5z"/></svg>'); }
+    #btnCortinaTrasera::before { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23e6e6e6"><path d="M20 19V3H4v16H2v2h20v-2h-2zM6 5h12v14H6V5z"/></svg>'); }
+    #btnCortinaExtra::before { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23e6e6e6"><path d="M20 19V3H4v16H2v2h20v-2h-2zM6 5h12v14H6V5z"/></svg>'); }
+
+    /* Contenedor con desplazamiento horizontal */
+    .controls-scroll {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: nowrap;
+      gap: 10px;
+      overflow-x: auto;
+      padding: 10px;
+      width: 100%;
+      max-width: 600px;
+      margin: 0 auto;
+      white-space: nowrap;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.3) rgba(0,0,0,0.2);
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    /* Asegurar que los botones no se envuelvan */
+    .controls-scroll .ui-button {
+      flex: 0 0 auto;
+    }
+    
+    .controls-scroll::-webkit-scrollbar {
+      height: 6px;
+    }
+    
+    .controls-scroll::-webkit-scrollbar-track {
+      background: rgba(0,0,0,0.2);
+      border-radius: 3px;
+    }
+    
+    .controls-scroll::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.3);
+      border-radius: 3px;
+    }
+    
+    /* Agrupadores (luces/cortinas) para que parezcan módulos dentro de la barra */
+    .module {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 6px 8px;
+      background: rgba(0,0,0,0.7);
+      border: 1px solid var(--border-panel);
+      border-radius: 10px;
+      width: 100%;
+    }
+    
+    .module-title {
+      font-size: 12px;
+      font-weight: bold;
+      text-align: center;
+      color: #e6e6e6;
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.2);
+      margin-bottom: 6px;
+      letter-spacing: 1px;
+    }
+    
+    .module-buttons {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 10px;
+      overflow-x: auto;
+      padding: 4px 0;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.3) rgba(0,0,0,0.2);
+    }
+    
+    .module-buttons::-webkit-scrollbar {
+      height: 6px;
+    }
+    
+    .module-buttons::-webkit-scrollbar-track {
+      background: rgba(0,0,0,0.2);
+      border-radius: 3px;
+    }
+    
+    .module-buttons::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.3);
+      border-radius: 3px;
+    }
+    
+    /* Ajuste para la fila de controles */
+    .controls-row {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+    }
+
+    /* HUD de coordenadas */
+    #hud-curtain-front {
+      position: fixed;
+      left: 14px;
+      bottom: 14px;
+      background: rgba(0, 0, 0, 0.55);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px;
+      color: #e8e8e8;
+      font: 12px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      letter-spacing: .2px;
+      padding: 6px 10px;
+      z-index: 20;
+      pointer-events: none;
+      user-select: text;
+      min-width: 210px;
+    }
+
+    .slider-col {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--btn-text-dim);
+      font: 11px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+    .slider-col input[type="range"] {
+      width: 120px;
+    }
+
+    /* Estilo para el rectángulo de chat */
+    #chat-box {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      background: var(--bg-panel);
+      border-top: 1px solid var(--border-panel);
+      display: flex;
+      align-items: center;
+      padding: 10px;
+      box-shadow: var(--shadow-outer);
+      z-index: 20;
+    }
+
+    #chat-input {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid var(--border-panel);
+      border-radius: 8px;
+      background: #222;
+      color: var(--btn-text);
+      font-size: 14px;
+      outline: none;
+    }
+
+    #chat-send {
+      margin-left: 10px;
+      padding: 10px 20px;
+      background: var(--btn-bg1);
+      color: var(--btn-text);
+      border: 1px solid var(--btn-border);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    #chat-send:hover {
+      background: var(--btn-hover);
+    }
+
+    /* Estilo para el área de respuesta */
+    #chat-response {
+      position: fixed;
+      bottom: 60px;
+      left: 0;
+      width: 100%;
+      padding: 10px;
+      background: rgba(0, 0, 0, 0.7);
+      color: #e6e6e6;
+      font-size: 14px;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      z-index: 20;
+    }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <div class="controls-scroll">
+      <button id="btnPortonDelantero" class="ui-button"><span>Abrir portón delantero</span></button>
+      <button id="btnPortonTrasero" class="ui-button"><span>Abrir portón trasero</span></button>
+      <button id="btnPuerta" class="ui-button"><span>Abrir puerta</span></button>
+      <button id="btnPuertaCuarto" class="ui-button"><span>Abrir puerta cuarto</span></button>
+      <button id="btnPuertaBaño" class="ui-button"><span>Abrir puerta baño</span></button>
+      <button id="btnCortinaDelantera" class="ui-button"><span>Cerrar cortina delantera</span></button>
+      <button id="btnCortinaTrasera" class="ui-button"><span>Cerrar cortina trasera</span></button>
+      <button id="btnCortinaExtra" class="ui-button"><span>Cerrar cortina cocina</span></button>
+      <div id="lights-controls" class="module"></div>
+    </div>
+    </div>
+  </div>
+
+
+
+  <!-- ✅ Usamos módulos ES -->
+  <script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.150.1/build/three.module.js",
+    "three/examples/jsm/": "https://unpkg.com/three@0.150.1/examples/jsm/"
+  }
+}
+  </script>
+  <script type="module" src="config.js"></script>
+  <script type="module" src="main.js"></script>
+</body>
+</html>
