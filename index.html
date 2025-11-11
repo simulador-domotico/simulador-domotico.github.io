@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simulador Domótico</title>
+  <style>
+    :root {
+      --bg-panel: rgba(15, 15, 15, 0.75);
+      --border-panel: rgba(255, 255, 255, 0.08);
+      --btn-bg1:  #4b4e5d;
+      --btn-bg2: #2B2F3B ;
+      --btn-border: rgba(255, 255, 255, 0.10);
+      --btn-text: #e6e6e6;
+      --btn-text-dim: #bfbfbf;
+  --btn-hover: #615f68;
+      --shadow-outer: 0 6px 24px rgba(0,0,0,0.45);
+      --shadow-inner: inset 0 1px 0 rgba(255,255,255,0.05);
+    }
+
+    body { margin: 0; overflow: hidden; background: #111; }
+
+    /* Barra superior centrada */
+    #controls {
+      position: fixed;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg-panel);
+      border: 1px solid var(--border-panel);
+      border-radius: 12px;
+    padding: 7.5px 9px;
+      box-shadow: var(--shadow-outer);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      z-index: 10;
+    }
+
+    /* Panel vertical derecho */
+    #right-panel {
+      position: fixed;
+      top: 50%;
+      right: 50px;
+      transform: translateY(-50%);
+      background: var(--bg-panel);
+      border: 1px solid var(--border-panel);
+      border-radius: 12px;
+      padding: 9px 7.5px;
+      box-shadow: var(--shadow-outer);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      z-index: 10;
+      width: 110px;
+      height: auto; /* alto se ajusta al contenido */
+      display: flex;
+      flex-direction: column;
+      justify-content: center; /* centrar verticalmente los controles */
+      align-items: center; /* centrar horizontalmente */
+      gap: 12px; /* separación uniforme entre widgets */
+    }
+
+  /* Cruceta (D-Pad) */
+  .dpad {
+    width: 94px; /* 3*btn + 2*gaps => 3*26 + 2*8 */
+    height: 94px;
+    margin: 4px auto 12px auto; /* centrado óptico */
+    position: relative;
+    align-self: center; /* asegura centrado dentro del flex */
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: 1fr 1fr 1fr;
+    gap: 8px;
+    justify-items: center;
+    align-items: center;
+    transform: translateX(-5px); /* ligero desplazamiento hacia la izquierda */
+  }
+  .dpad button {
+    appearance: none;
+    background: linear-gradient(180deg, var(--btn-bg1), var(--btn-bg2));
+    color: var(--btn-text);
+    border: 1px solid var(--btn-border);
+    border-radius: 8px;
+    width: 26px;
+    height: 26px;
+    cursor: pointer;
+    box-shadow: var(--shadow-inner), 0 2px 10px rgba(0,0,0,.35);
+    transition: background .15s ease, transform .06s ease, box-shadow .2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    user-select: none;
+  }
+  .dpad button:hover { background: linear-gradient(180deg, var(--btn-hover), var(--btn-bg2)); }
+  .dpad button:active { transform: translateY(1px); box-shadow: var(--shadow-inner), 0 1px 6px rgba(0,0,0,.45); }
+  .dpad .center {
+    width: 34px;
+    height: 34px;
+    font-weight: bold;
+  }
+  .dpad .empty { visibility: hidden; }
+
+    /* Contenedor rectangular para la barra de zoom */
+    .zoom-slider-container {
+      width: 60px;
+      height: 160px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      margin: 14px auto 18px auto;
+      background: linear-gradient(180deg, var(--btn-bg1), var(--btn-bg2));
+      border: 1px solid var(--btn-border);
+      border-radius: 8px;
+      padding: 8px 6px;
+      box-shadow: var(--shadow-inner), 0 2px 10px rgba(0,0,0,.35);
+    }
+
+    .zoom-slider {
+      width: 8px;
+      height: 140px;
+      background: linear-gradient(to bottom, #2a2a2a, #4a4a4a); /* degradé invertido */
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      position: relative;
+      cursor: pointer;
+      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+    }
+
+    .zoom-slider-track {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(to bottom, #3e3e3e, #1f1f1f); /* degradé invertido */
+      border-radius: 3px;
+    }
+
+    .zoom-icon {
+      color: #c9c9c9;
+      font-size: 14px;
+      line-height: 1;
+      user-select: none;
+      pointer-events: none;
+      text-shadow: 0 1px 2px rgba(0,0,0,.35);
+    }
+    .zoom-icon-top { margin-top: 2px; }
+    .zoom-icon-bottom { margin-bottom: 2px; }
+
+    .zoom-slider-thumb {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 16px;
+      height: 16px;
+      background: linear-gradient(135deg, #e0e0e0, #c0c0c0);
+      border: 1px solid #888;
+      border-radius: 50%;
+      cursor: grab;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+      transition: box-shadow 0.2s ease;
+    }
+
+    .zoom-slider-thumb:hover {
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+    }
+
+    .zoom-slider-thumb:active {
+      cursor: grabbing;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+    }
+
+    .zoom-slider-thumb::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 6px;
+      height: 6px;
+      background: #666;
+      border-radius: 50%;
+    }
+
+    /* Contenedor flexible con salto de línea, centrado */
+    #controls .controls-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      align-items: center;
+      max-width: 860px;
+    }
+
+    /* Botón estilo panel oscuro */
+    .ui-button {
+      appearance: none;
+      background: linear-gradient(180deg, var(--btn-bg1), var(--btn-bg2));
+      color: var(--btn-text);
+      border: 1px solid var(--btn-border);
+      border-radius: 8px;
+    width: 72px;
+    height: 69px;
+    padding: 6px 6px 7.5px;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      font-size: 12px;
+      letter-spacing: .4px;
+      text-transform: none;
+      cursor: pointer;
+      box-shadow: var(--shadow-inner), 0 2px 10px rgba(0,0,0,.35);
+      transition: background .15s ease, transform .06s ease, box-shadow .2s ease;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      text-align: center;
+      position: relative;
+    }
+    .ui-button:hover { background: linear-gradient(180deg, var(--btn-hover), var(--btn-bg2)); }
+    .ui-button:active { transform: translateY(1px); box-shadow: var(--shadow-inner), 0 1px 6px rgba(0,0,0,.45); }
+    /* Aro blanco plano cuando el actuador está activo */
+    .ui-button.active-ring::after {
+      content: "";
+      position: absolute;
+      inset: -3px;
+      border: 2px solid #ffffff;
+      border-radius: inherit;
+      pointer-events: none;
+    }
+    
+    /* Icono del botón */
+    .ui-button::before {
+      content: "";
+      display: block;
+    width: 34px;
+    height: 34px;
+  margin-bottom: 0;
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+    
+    /* Texto del botón con truncamiento */
+    .ui-button span {
+  display: block;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.5;
+  min-height: unset;
+  font-weight: normal;
+    }
+    
+    /* Iconos específicos para cada botón */
+    #btnPortonDelantero::before {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23fff"><title>garage-open</title><path d="M19,20H17V11H7V20H5V9L12,5L19,9V20M8,12H16V14H8V12Z" /></svg>');
+    }
+    #btnPortonTrasero::before {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23fff"><title>garage-open</title><path d="M19,20H17V11H7V20H5V9L12,5L19,9V20M8,12H16V14H8V12Z" /></svg>');
+    }
+    #btnPuerta::before {
+      background-image: url('assets/puerta cerrada.png');
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+    #btnPuertaCuarto::before {
+      background-image: url('assets/puerta cerrada.png');
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+    #btnCortinaDelantera::before {
+      background-image: url('assets/cortian_cerrada-removebg-preview.png');
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+    #btnCortinaTrasera::before {
+      background-image: url('assets/cortian_cerrada-removebg-preview.png');
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+    #btnCortinaExtra::before {
+      background-image: url('assets/cortian_cerrada-removebg-preview.png');
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+    .light-on::before { 
+      background-image: url('assets/bombilla prendida.png'); 
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+    .light-off::before { 
+      background-image: url('assets/bombilla apagada.png'); 
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+    .icon-light::before { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23ffd86b"><path d="M9 21h6v-1.5H9V21zm3-19C7.93 2 5 4.93 5 8c0 2.38 1.19 4.47 3 5.74V16c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.07-2.93-6-6-6z"/></svg>'); }
+
+    /* Contenedor con desplazamiento horizontal (sin barra visible) */
+    .controls-scroll {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: nowrap;
+      gap: 10px;
+      overflow-x: auto;
+      padding: 2.5px;
+      width: 100%;
+      max-width: 800px;
+      margin: 0 auto;
+      white-space: nowrap;
+      scrollbar-width: auto; /* Firefox: mostrar barra */
+      height: auto;
+      overscroll-behavior: contain;
+      border-radius: 8px 8px 16px 16px;
+    }
+    /* Mostrar barra de desplazamiento en WebKit */
+    .controls-scroll::-webkit-scrollbar {
+      height: 8px;
+      background: #222;
+      border-radius: 4px;
+    }
+    .controls-scroll::-webkit-scrollbar-thumb {
+      background: #4b4e5d;
+      border-radius: 4px;
+    }
+    
+    /* Asegurar que los botones no se envuelvan */
+    .controls-scroll .ui-button {
+      flex: 0 0 auto;
+    }
+    
+    /* Ocultar scrollbar en WebKit */
+    .controls-scroll.dragging { cursor: grabbing; }
+
+    
+    /* Agrupadores (luces/cortinas) para que parezcan módulos dentro de la barra */
+    .module { display: contents; }
+    
+    .module-title { display: none; }
+    
+    .module-buttons { display: contents; }
+    
+    /* Ocultar scrollbar en WebKit */
+    .module-buttons::-webkit-scrollbar { display: none; }
+    .module-buttons.dragging { cursor: grabbing; }
+    
+    /* Ajuste para la fila de controles */
+    .controls-row {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+    }
+
+    
+
+    .slider-col {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--btn-text-dim);
+      font: 11px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+    .slider-col input[type="range"] {
+      width: 120px;
+    }
+
+
+    /* Estilos para los íconos dinámicos del portón delantero */
+    #btnPortonDelantero.garage-open::before {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23fff"><title>garage</title><path d="M19,20H17V11H7V20H5V9L12,5L19,9V20M8,12H16V14H8V12M8,15H16V17H8V15M16,18V20H8V18H16Z" /></svg>');
+    }
+    #btnPortonDelantero.garage-closed::before {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23fff"><title>garage-open</title><path d="M19,20H17V11H7V20H5V9L12,5L19,9V20M8,12H16V14H8V12Z" /></svg>');
+    }
+    #btnPortonTrasero.garage-open::before {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23fff"><title>garage</title><path d="M19,20H17V11H7V20H5V9L12,5L19,9V20M8,12H16V14H8V12M8,15H16V17H8V15M16,18V20H8V18H16Z" /></svg>');
+    }
+    #btnPortonTrasero.garage-closed::before {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23fff"><title>garage-open</title><path d="M19,20H17V11H7V20H5V9L12,5L19,9V20M8,12H16V14H8V12Z" /></svg>');
+    }
+    
+    /* Estilos para los íconos dinámicos de las puertas - usar PNG de assets */
+    #btnPuerta.door-open::before,
+    #btnPuertaCuarto.door-open::before,
+    #btnPuertaBaño.door-open::before {
+      background-image: url('assets/puerta cerrada.png');
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+    #btnPuerta.door-closed::before,
+    #btnPuertaCuarto.door-closed::before,
+    #btnPuertaBaño.door-closed::before {
+      background-image: url('assets/puerta abierta.png');
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+
+    /* Estilos para los íconos dinámicos de las cortinas */
+    #btnCortinaDelantera.curtains::before {
+      background-image: url('assets/cortina_abierta-removebg-preview.png');
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+    #btnCortinaTrasera.curtains::before {
+      background-image: url('assets/cortina_abierta-removebg-preview.png');
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+    /* Inversión de iconos para Cortina 3 */
+    #btnCortinaExtra.curtains::before {
+      /* Cuando está abierta, mostrar imagen de CERRADA (invertido) */
+      background-image: url('assets/cortian_cerrada-removebg-preview.png');
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+    #btnCortinaExtra.curtains-closed::before {
+      /* Cuando está cerrada, mostrar imagen de ABIERTA (invertido) */
+      background-image: url('assets/cortina_abierta-removebg-preview.png');
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+
+
+    /* Estilos para carteles informativos */
+    .info-card {
+      animation: cardAppear 0.3s ease-out;
+    }
+    
+    @keyframes cardAppear {
+      from {
+        opacity: 0;
+        transform: scale(0.8) translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+    
+    .connection-line {
+      animation: lineDraw 0.5s ease-out;
+      border-top: 4px dashed rgba(100, 150, 255, 0.8);
+      background: transparent;
+    }
+    
+    @keyframes lineDraw {
+      from {
+        width: 0;
+        opacity: 0;
+      }
+      to {
+        width: var(--line-width);
+        opacity: 1;
+      }
+    }
+
+
+  </style>
+</head>
+<body>
+  
+
+  <div id="controls">
+    <div class="controls-scroll">
+  <!-- Flecha izquierda eliminada -->
+  <button id="btnPortonDelantero" class="ui-button"><span>Portón 1</span></button>
+  <button id="btnPortonTrasero" class="ui-button"><span>Portón 2</span></button>
+  <button id="btnPuerta" class="ui-button"><span>Puerta</span></button>
+  <button id="btnPuertaCuarto" class="ui-button"><span>Puerta cuarto</span></button>
+  <button id="btnPuertaBaño" class="ui-button"><span>Puerta baño</span></button>
+  <button id="btnCortinaDelantera" class="ui-button"><span>Cortina delantera</span></button>
+  <button id="btnCortinaTrasera" class="ui-button"><span>Cortina trasera</span></button>
+  <button id="btnCortinaExtra" class="ui-button"><span>Cortina 3</span></button>
+  <!-- Los botones de luces se insertarán aquí dinámicamente -->
+  <!-- Flecha derecha eliminada -->
+    </div>
+    <div class="custom-scrollbar">
+      <div class="custom-scrollbar-thumb" id="customThumb"></div>
+    </div>
+  </div>
+  <script>
+    // Flechas de navegación para controles-scroll
+    /*
+    const scrollContainer = document.querySelector('.controls-scroll');
+    const arrowLeft = document.getElementById('arrow-left');
+    const arrowRight = document.getElementById('arrow-right');
+    function updateArrows() {
+      if (!scrollContainer) return;
+      const maxScroll = scrollContainer.scrollWidth - scrollContainer.clientWidth;
+      arrowLeft.style.display = scrollContainer.scrollLeft > 10 ? 'block' : 'none';
+      arrowRight.style.display = scrollContainer.scrollLeft < maxScroll - 10 ? 'block' : 'none';
+    }
+    scrollContainer.addEventListener('scroll', updateArrows);
+    window.addEventListener('resize', updateArrows);
+    setTimeout(updateArrows, 500);
+    arrowLeft.addEventListener('click', () => {
+      scrollContainer.scrollBy({ left: -150, behavior: 'smooth' });
+    });
+    arrowRight.addEventListener('click', () => {
+      scrollContainer.scrollBy({ left: 150, behavior: 'smooth' });
+    });
+    */
+  </script>
+    </div>
+    </div>
+  </div>
+
+  <!-- Panel vertical derecho -->
+  <div id="right-panel">
+    <!-- Barra de zoom vertical -->
+    <div class="zoom-slider-container">
+      <div class="zoom-icon zoom-icon-top" aria-hidden="true">−</div>
+      <div class="zoom-slider" id="zoomSlider">
+        <div class="zoom-slider-track"></div>
+        <div class="zoom-slider-thumb" id="zoomThumb"></div>
+      </div>
+      <div class="zoom-icon zoom-icon-bottom" aria-hidden="true">+</div>
+    </div>
+    <!-- Cruceta de movimiento -->
+    <div class="dpad" aria-label="Mover casa">
+      <button class="empty" tabindex="-1" aria-hidden="true"></button>
+      <button id="dpad-up" title="Vista superior">▲</button>
+      <button class="empty" tabindex="-1" aria-hidden="true"></button>
+      <button id="dpad-left" title="Girar a la izquierda">◀</button>
+      <button id="dpad-center" class="center" title="Restablecer vista">●</button>
+      <button id="dpad-right" title="Girar a la derecha">▶</button>
+      <button class="empty" tabindex="-1" aria-hidden="true"></button>
+      <button id="dpad-down" title="Vista frontal">▼</button>
+      <button class="empty" tabindex="-1" aria-hidden="true"></button>
+    </div>
+    
+  </div>
+
+  <!-- ✅ Usamos módulos ES -->
+  <script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.150.1/build/three.module.js",
+    "three/examples/jsm/": "https://unpkg.com/three@0.150.1/examples/jsm/"
+  }
+}
+  </script>
+  <script type="module" src="config.js"></script>
+  <script type="module" src="main.js"></script>
+  <script>
+  (function(){
+    function enableDragScroll(container){
+      if(!container) return;
+      let isDown=false; let startX=0; let startScroll=0; let activeId=null; let allowDrag=true; let draggingActive=false;
+      const THRESHOLD = 4; // px para considerar que es drag
+      const onDown=(e)=>{
+        isDown=true; draggingActive=false; startX=e.clientX; startScroll=container.scrollLeft; activeId=e.pointerId;
+      };
+      const onMove=(e)=>{
+        if(!isDown) return;
+        const dx=e.clientX-startX;
+        if (!draggingActive && Math.abs(dx) < THRESHOLD) return; // aún es click
+        // activar drag al superar umbral
+        draggingActive=true; container.classList.add('dragging');
+        e.preventDefault();
+        container.scrollLeft = startScroll - dx;
+      };
+      const onUp=()=>{
+        if(!isDown) return; isDown=false;
+        activeId=null; container.classList.remove('dragging'); draggingActive=false;
+      };
+      container.addEventListener('pointerdown', onDown, {passive:false});
+      container.addEventListener('pointermove', onMove, {passive:false});
+      container.addEventListener('pointerup', onUp, {passive:true});
+      container.addEventListener('pointerleave', onUp, {passive:true});
+      // wheel horizontal support
+      container.addEventListener('wheel', (e)=>{
+        if(Math.abs(e.deltaX) < Math.abs(e.deltaY)) return; // vertical wheel ignored
+        container.scrollLeft += e.deltaX; e.preventDefault();
+      }, {passive:false});
+    }
+    // Inicializar al cargar
+    const topScroll = document.querySelector('.controls-scroll');
+    enableDragScroll(topScroll);
+    document.querySelectorAll('.module-buttons').forEach(enableDragScroll);
+    // Poner tooltips con el texto completo
+    document.querySelectorAll('.ui-button').forEach(btn=>{
+      const label = btn.textContent?.trim();
+      if(label) btn.title = label;
+    });
+  })();
+
+  // Funcionalidad de la barra de zoom vertical
+  (function() {
+    const zoomSlider = document.getElementById('zoomSlider');
+    const zoomThumb = document.getElementById('zoomThumb');
+    
+    if (!zoomSlider || !zoomThumb) return;
+    
+    let isDragging = false;
+    const minDistance = 1.0; // Distancia mínima de la cámara al target
+    const maxDistance = 8.0; // Distancia máxima de la cámara al target
+    
+    // Posición inicial del thumb (centro de la barra)
+    let thumbPosition = 0.5; // 0 = arriba (zoom máximo), 1 = abajo (zoom mínimo)
+    updateThumbPosition();
+    
+    // Variables para acceder a Three.js (se asignarán cuando estén disponibles)
+    let threeCamera = null;
+    let threeControls = null;
+    let THREE = null;
+    
+    function updateThumbPosition() {
+      const sliderHeight = zoomSlider.offsetHeight;
+      const thumbHeight = zoomThumb.offsetHeight;
+      const maxTop = 0;
+      const maxBottom = sliderHeight - thumbHeight;
+      const top = maxTop + (maxBottom - maxTop) * thumbPosition;
+      zoomThumb.style.top = top + 'px';
+    }
+    
+    function updateCameraZoom() {
+      if (!threeCamera || !threeControls || !THREE) return;
+      
+      // Convertir posición del thumb (0-1) a distancia de cámara
+      const distance = minDistance + (maxDistance - minDistance) * (1 - thumbPosition);
+      
+      // Obtener el target de los controles
+      const target = threeControls.target || new THREE.Vector3(0, 0, 0);
+      
+      // Calcular nueva posición de cámara manteniendo la dirección
+      const direction = new THREE.Vector3().subVectors(threeCamera.position, target).normalize();
+      const newPosition = new THREE.Vector3().copy(target).add(direction.multiplyScalar(distance));
+      
+      // Actualizar posición de cámara
+      threeCamera.position.copy(newPosition);
+      threeCamera.updateProjectionMatrix();
+      // Forzar límites también en controls
+      if (threeControls) {
+        threeControls.minDistance = minDistance;
+        threeControls.maxDistance = maxDistance;
+        threeControls.update();
+      }
+    }
+    
+    // Función para obtener las referencias de Three.js
+    function getThreeReferences() {
+      // Buscar en el scope global o en el módulo
+      if (typeof window !== 'undefined') {
+        // Intentar acceder a través de eventos personalizados o variables globales
+        const event = new CustomEvent('getThreeReferences');
+        window.dispatchEvent(event);
+      }
+    }
+    
+    // Eventos del mouse
+    zoomThumb.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      e.preventDefault();
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      
+      const sliderRect = zoomSlider.getBoundingClientRect();
+      const thumbHeight = zoomThumb.offsetHeight;
+      const sliderHeight = sliderRect.height;
+      
+      // Calcular posición relativa del mouse en la barra
+      const mouseY = e.clientY - sliderRect.top;
+      const clampedY = Math.max(0, Math.min(sliderHeight - thumbHeight, mouseY - thumbHeight / 2));
+      
+      // Convertir a posición relativa (0-1)
+      thumbPosition = clampedY / (sliderHeight - thumbHeight);
+      
+      updateThumbPosition();
+      updateCameraZoom();
+    });
+    
+    document.addEventListener('mouseup', () => {
+      isDragging = false;
+    });
+    
+    // Eventos de la barra (click para saltar a posición)
+    zoomSlider.addEventListener('click', (e) => {
+      if (e.target === zoomThumb) return; // No hacer nada si se clickea el thumb
+      
+      const sliderRect = zoomSlider.getBoundingClientRect();
+      const thumbHeight = zoomThumb.offsetHeight;
+      const sliderHeight = sliderRect.height;
+      
+      const mouseY = e.clientY - sliderRect.top;
+      const clampedY = Math.max(0, Math.min(sliderHeight - thumbHeight, mouseY - thumbHeight / 2));
+      
+      thumbPosition = clampedY / (sliderHeight - thumbHeight);
+      
+      updateThumbPosition();
+      updateCameraZoom();
+    });
+    
+    // Eventos táctiles para dispositivos móviles
+    zoomThumb.addEventListener('touchstart', (e) => {
+      isDragging = true;
+      e.preventDefault();
+    });
+    
+    document.addEventListener('touchmove', (e) => {
+      if (!isDragging) return;
+      
+      const touch = e.touches[0];
+      const sliderRect = zoomSlider.getBoundingClientRect();
+      const thumbHeight = zoomThumb.offsetHeight;
+      const sliderHeight = sliderRect.height;
+      
+      const touchY = touch.clientY - sliderRect.top;
+      const clampedY = Math.max(0, Math.min(sliderHeight - thumbHeight, touchY - thumbHeight / 2));
+      
+      thumbPosition = clampedY / (sliderHeight - thumbHeight);
+      
+      updateThumbPosition();
+      updateCameraZoom();
+    });
+    
+    document.addEventListener('touchend', () => {
+      isDragging = false;
+    });
+    
+    // Función para inicializar las referencias de Three.js
+    function initializeThreeReferences() {
+      // Intentar acceder a las variables globales que podrían estar disponibles
+      if (typeof window !== 'undefined') {
+        // Buscar en el objeto window por las variables de Three.js
+        const possibleCamera = window.camera || window.threeCamera;
+        const possibleControls = window.controls || window.threeControls;
+        const possibleTHREE = window.THREE;
+        
+        if (possibleCamera && possibleControls && possibleTHREE) {
+          threeCamera = possibleCamera;
+          threeControls = possibleControls;
+          THREE = possibleTHREE;
+          console.log('Referencias de Three.js encontradas para el zoom');
+          // Configurar límites de zoom en controls y sincronizar
+          threeControls.minDistance = minDistance;
+          threeControls.maxDistance = maxDistance;
+          // Sincronizar el thumb cuando cambie la distancia por rueda/gesto
+          const syncFromControls = () => {
+            const target = threeControls.target || new THREE.Vector3(0, 0, 0);
+            const currentDistance = new THREE.Vector3().subVectors(threeCamera.position, target).length();
+            const clamped = Math.max(minDistance, Math.min(maxDistance, currentDistance));
+            const t = 1 - (clamped - minDistance) / (maxDistance - minDistance);
+            thumbPosition = Math.max(0, Math.min(1, t));
+            updateThumbPosition();
+          };
+          threeControls.addEventListener('change', syncFromControls);
+          // Sincronizar una vez al inicio con la distancia actual
+          syncFromControls();
+          return true;
+        }
+      }
+      return false;
+    }
+    
+    // Intentar inicializar las referencias múltiples veces
+    let initAttempts = 0;
+    const maxInitAttempts = 20;
+    
+    function tryInitialize() {
+      if (initializeThreeReferences()) {
+        updateCameraZoom();
+      } else if (initAttempts < maxInitAttempts) {
+        initAttempts++;
+        setTimeout(tryInitialize, 500);
+      } else {
+        console.warn('No se pudieron encontrar las referencias de Three.js para el zoom');
+      }
+    }
+    
+    // Iniciar intentos de inicialización
+    setTimeout(tryInitialize, 1000);
+  })();
+  </script>
+</body>
+</html>
